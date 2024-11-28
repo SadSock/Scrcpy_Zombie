@@ -56,25 +56,15 @@ pos_环球救援_x = 300
 pos_环球救援_y = 625
 
 
-pos_技能选择_1_x = 100
-pos_技能选择_1_y = 600
-
 # 检测图像是否发生变化的矩形区域
-top_left_x = 140
+top_left_x = 40
 top_left_y = 400
-bottom_right_x = 220
+bottom_right_x = 120
 bottom_right_y = 580
 
-# 技能计数
+pos_开始游戏_x = 260
+pos_开始游戏_y = 960
 
-skill_cnt = 0
-
-
-pos_暂停_x = 42 
-pos_暂停_y = 75
-
-pos_退出_x = 150 
-pos_退出_y = 1000
 
 
 #enter_base_command = "adb shell input tap " + str(pos_base_x * scale_ratio) + " " + str(pos_base_y * scale_ratio)
@@ -102,7 +92,6 @@ template_挑战失败 = cv2.imread("../resource/template_challenging_failure.bmp
 template_挑战成功 = cv2.imread("../resource/template_challenging_success.bmp")
 template_组队招募 = cv2.imread("../resource/template_recruit.bmp")
 template_战斗    = cv2.imread("../resource/template_battle.bmp")
-template_技能选择 = cv2.imread("../resource/template_skill_select.bmp")
 
 
 h,w = template_rescue.shape[:-1]
@@ -145,13 +134,6 @@ while True:
     frame_scale = cv2.resize(frame, (vitual_width, vitual_height), interpolation=cv2.INTER_LINEAR)
     
     
-    #保存图片
-    if(frame_cnt % 100 == 0):        
-        cv2.imwrite("../images/"+str(frame_cnt / 1000  % 1000 )+".bmp", frame_scale)
-        loginfo = "保存 " + "../images/"  + str(frame_cnt / 1000  % 1000 )+".bmp"
-        logging.info(loginfo)
-    
-    
     if(frame_cnt == 1):
         # 保存上一帧的片段，用来检测图像是否发生变化
         pre_roi =  frame_scale[top_left_y : bottom_right_y, top_left_x:bottom_right_x]
@@ -163,16 +145,6 @@ while True:
     ## 确定当前所处的状态
     
     if(frame_cnt % 20 == 0):
-        
-        # 技能选择
-        result = cv2.matchTemplate(frame_scale, template_技能选择, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(abs(result) >= 0.90)
-        locations = list(zip(*locations[::-1]))
-        # find rescue
-        if(len(locations)!=0):
-            status="技能选择"
-            logging.info("status:" + status + " " + str(np.max(abs(result))))
-        
         
         # 环球救援
         result = cv2.matchTemplate(frame_scale, template_环球救援, cv2.TM_CCOEFF_NORMED)
@@ -207,7 +179,6 @@ while True:
         # find rescue
         if(len(locations)!=0):
             status="组队招募"
-            skill_cnt = 0
             logging.info(status)
 
         result = cv2.matchTemplate(frame_scale, template_战斗, cv2.TM_CCOEFF_NORMED)
@@ -220,16 +191,10 @@ while True:
     
     
     if(status=="战斗"):
-        enter_基地_command = "adb shell input tap " + str(pos_基地_x * scale_ratio) + " " + str(pos_基地_y * scale_ratio)
-        subprocess.run(enter_基地_command, shell=True)
-        time.sleep(0.2)
-        enter_历练大厅_command = "adb shell input tap " + str(pos_历练大厅_x * scale_ratio) + " " + str(pos_历练大厅_y * scale_ratio)
-        subprocess.run(enter_历练大厅_command, shell=True)
-        time.sleep(0.2)
-        enter_环球救援_command = "adb shell input tap " + str(pos_环球救援_x * scale_ratio) + " " + str(pos_环球救援_y * scale_ratio)
-        subprocess.run(enter_环球救援_command, shell=True)
-        #time.sleep(0.2)
-        status="环球救援"
+        enter_开始战斗_command = "adb shell input tap " + str(pos_开始游戏_x * scale_ratio) + " " + str(pos_开始游戏_y * scale_ratio)
+        subprocess.run(enter_开始战斗_command, shell=True)
+        status="未知"
+
         
     
     if(status=="环球救援"):
@@ -242,28 +207,11 @@ while True:
         subprocess.run(exit_挑战结束_command, shell=True)
         status=""
     
-    if(status=="技能选择"):
-        选择技能_command = "adb shell input tap " + str(pos_技能选择_1_x * scale_ratio) + " " + str(pos_技能选择_1_y * scale_ratio)
-        subprocess.run(选择技能_command , shell=True)
-        skill_cnt = skill_cnt + 1
-        loginfo = "技能选择: " + str(skill_cnt)
-        logging.info(loginfo)
-        status="战斗中"
-    
-    if(status=="战斗中"):
-        if(skill_cnt >= 10):
-            time.sleep(1.0)
-            暂停_command = "adb shell input tap " + str(pos_暂停_x * scale_ratio) + " " + str(pos_暂停_y * scale_ratio)
-            subprocess.run(暂停_command , shell=True)
-            loginfo = "暂停: " + str(skill_cnt)
-            logging.info(loginfo)
-            time.sleep(0.4)
-            退出_command = "adb shell input tap " + str(pos_退出_x * scale_ratio) + " " + str(pos_退出_y * scale_ratio)
-            subprocess.run(退出_command , shell=True)
-            skill_cnt = 0
-            
-    
     if(status=="组队招募"):
+        result = cv2.matchTemplate(frame_scale, template_rescue, cv2.TM_CCOEFF_NORMED)
+        threshold = 0.8
+        locations = np.where(abs(result) >= threshold)
+        locations = list(zip(*locations[::-1]))
         
         cur_roi =  frame_scale[top_left_y : bottom_right_y, top_left_x : bottom_right_x]
         result = cv2.matchTemplate(cur_roi, pre_roi, cv2.TM_CCOEFF_NORMED)
@@ -277,24 +225,24 @@ while True:
         if(max_val > 0.99):
             continue
         
-        
-        result = cv2.matchTemplate(frame_scale, template_rescue, cv2.TM_CCOEFF_NORMED)
-        threshold = 0.8
-        locations = np.where(abs(result) >= threshold)
-        locations = list(zip(*locations[::-1]))
             
         for i in range(len(locations)):
             pt = locations[i]            
             loginfo = "环球救援屏幕坐标: " + str(pt[1]) + "（新） " +  str(pos_old_rescue_y) + "（旧）" 
             logging.info(loginfo)
+            
+
             rob_rescue_command = "adb shell input tap " + str((pt[0] + w) * scale_ratio) + " " + str((pt[1] + h) * scale_ratio)
             # 找到环球救援之后，单击click_num次
             click_num = 1 
             for i in range(click_num):   
                 subprocess.run(rob_rescue_command, shell=True)
             
-
-    
+    #保存图片
+    if(frame_cnt % 1000 == 0):        
+        cv2.imwrite("../images/"+str(frame_cnt / 1000  % 1000 )+".bmp", frame_scale)
+        loginfo = "保存 " + "../images/"  + str(frame_cnt / 1000  % 1000 )+".bmp"
+        logging.info(loginfo)
     #cv2.imshow('zombie', frame_scale)
     #if cv2.waitKey(1) == ord('q'):
     #    break
