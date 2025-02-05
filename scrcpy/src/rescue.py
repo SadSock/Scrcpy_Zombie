@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Sat Aug 31 16:08:52 2024
 
@@ -258,3 +256,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+
