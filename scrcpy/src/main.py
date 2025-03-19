@@ -6,12 +6,27 @@ Created on Sat Aug 31 16:08:52 2024
 @author: xwu
 """
 
-
 import cv2
 import numpy as np
 import subprocess
 import logging
 import time
+from tinydb import TinyDB, Query
+from datetime import datetime
+
+
+
+# 连接到 TinyDB 数据库，创建或打开一个 JSON 文件作为数据库
+db = TinyDB('counter.json')
+# 获取当天的日期并格式化为字符串，作为键
+today = datetime.today().strftime('%Y-%m-%d')
+# 创建一个查询对象
+Entry = Query()
+# 检查当天日期的数据点是否已经存在
+entry = db.get(Entry.date == today)
+if not entry:
+    db.insert({'date': today, 'value': 0})
+
 
 
 real_width  = 1080
@@ -52,12 +67,17 @@ pos_历练大厅_x = 100
 pos_历练大厅_y = 450
 
 
-pos_环球救援_x = 300
-pos_环球救援_y = 625
+pos_环球救援_x = 355
+pos_环球救援_y = 665
 
 
 pos_技能选择_1_x = 100
 pos_技能选择_1_y = 600
+
+
+pos_招募 = (92, 382)
+
+
 
 # 检测图像是否发生变化的矩形区域
 top_left_x = 140
@@ -70,11 +90,9 @@ bottom_right_y = 580
 skill_cnt = 0
 
 
-pos_暂停_x = 42 
-pos_暂停_y = 75
+pos_暂停 = (45, 116)
 
-pos_退出_x = 150 
-pos_退出_y = 1000
+pos_退出 = (148, 1024) 
 
 
 #enter_base_command = "adb shell input tap " + str(pos_base_x * scale_ratio) + " " + str(pos_base_y * scale_ratio)
@@ -93,7 +111,7 @@ cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
     print("do not open camera\n")
-    exit(-1)
+    quit()
 
 
 template_rescue = cv2.imread("../resource/template_rescue.png")
@@ -114,7 +132,7 @@ pos_old_rescue_y = 20
 #subprocess.run(enter_recruit_command, shell=True)
 status = "组队招募"
 frame_cnt = 0
-threshold = 0.8
+threshold = 0.9
 
 # 配置日志，输出到控制台
 logging.basicConfig(
@@ -176,7 +194,7 @@ while True:
         
         # 环球救援
         result = cv2.matchTemplate(frame_scale, template_环球救援, cv2.TM_CCOEFF_NORMED)
-        locations = np.where(abs(result) >= 0.89)
+        locations = np.where(abs(result) >= 0.84)
         locations = list(zip(*locations[::-1]))
         # find rescue
         if(len(locations)!=0):
@@ -222,24 +240,30 @@ while True:
     if(status=="战斗"):
         enter_基地_command = "adb shell input tap " + str(pos_基地_x * scale_ratio) + " " + str(pos_基地_y * scale_ratio)
         subprocess.run(enter_基地_command, shell=True)
-        time.sleep(0.2)
+        time.sleep(1.5)
         enter_历练大厅_command = "adb shell input tap " + str(pos_历练大厅_x * scale_ratio) + " " + str(pos_历练大厅_y * scale_ratio)
         subprocess.run(enter_历练大厅_command, shell=True)
-        time.sleep(0.2)
+        time.sleep(1.5)
         enter_环球救援_command = "adb shell input tap " + str(pos_环球救援_x * scale_ratio) + " " + str(pos_环球救援_y * scale_ratio)
         subprocess.run(enter_环球救援_command, shell=True)
-        #time.sleep(0.2)
+        time.sleep(1.5)
         status="环球救援"
         
     
     if(status=="环球救援"):
         enter_组队招募_command = "adb shell input tap " + str(pos_进入招募_x * scale_ratio) + " " + str(pos_进入招募_y * scale_ratio)
         subprocess.run(enter_组队招募_command, shell=True)
+        time.sleep(1.2)
+        enter_招募_command = "adb shell input tap " + str(pos_招募[0] * scale_ratio) + " " + str(pos_招募[1] * scale_ratio)
+        subprocess.run(enter_招募_command, shell=True)
         status="组队招募"
         
     if(status=="挑战结束"):
         exit_挑战结束_command = "adb shell input tap " + str(pos_结束挑战_x * scale_ratio) + " " + str(pos_结束挑战_y * scale_ratio)
         subprocess.run(exit_挑战结束_command, shell=True)
+        entry = db.get(Entry.date == today)
+        value = entry['value'] + 1
+        db.update({'value': value}, Entry.date == today)
         status=""
     
     if(status=="技能选择"):
@@ -253,12 +277,12 @@ while True:
     if(status=="战斗中"):
         if(skill_cnt >= 10):
             time.sleep(1.0)
-            暂停_command = "adb shell input tap " + str(pos_暂停_x * scale_ratio) + " " + str(pos_暂停_y * scale_ratio)
+            暂停_command = "adb shell input tap " + str(pos_暂停[0] * scale_ratio) + " " + str(pos_暂停[1] * scale_ratio)
             subprocess.run(暂停_command , shell=True)
             loginfo = "暂停: " + str(skill_cnt)
             logging.info(loginfo)
             time.sleep(0.4)
-            退出_command = "adb shell input tap " + str(pos_退出_x * scale_ratio) + " " + str(pos_退出_y * scale_ratio)
+            退出_command = "adb shell input tap " + str(pos_退出[0] * scale_ratio) + " " + str(pos_退出[1] * scale_ratio)
             subprocess.run(退出_command , shell=True)
             skill_cnt = 0
             
@@ -274,7 +298,7 @@ while True:
         loginfo = "组队招募屏幕相似度: " + str(max_val)
         logging.info(loginfo)
         
-        if(max_val > 0.99):
+        if(abs(max_val) > 0.99):
             continue
         
         
@@ -282,9 +306,12 @@ while True:
         threshold = 0.8
         locations = np.where(abs(result) >= threshold)
         locations = list(zip(*locations[::-1]))
+        
+        loginfo = "组队招募数量: " + str(len(locations))
+        logging.info(loginfo)
             
         for i in range(len(locations)):
-            pt = locations[i]            
+            pt = locations[len(locations) - 1 - i]            
             loginfo = "环球救援屏幕坐标: " + str(pt[1]) + "（新） " +  str(pos_old_rescue_y) + "（旧）" 
             logging.info(loginfo)
             rob_rescue_command = "adb shell input tap " + str((pt[0] + w) * scale_ratio) + " " + str((pt[1] + h) * scale_ratio)
